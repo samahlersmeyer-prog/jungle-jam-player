@@ -318,12 +318,33 @@
     if (v) setSleep(v);
   });
   $("back").addEventListener("click", () => history.length > 1 ? history.back() : go("#/"));
+  // ↻ = full refresh: new episode list from Drive and the newest version of the app.
   $("refresh").addEventListener("click", () => {
     store.clearLists();
-    shelfCache.clear();
-    render();
-    toast("Episode list refreshed");
+    savePosition();
+    location.replace(`./?v=${Date.now()}${location.hash}`);
   });
+
+  // Home-screen apps on iPhone keep old files around. Check for a newer version
+  // whenever the app is opened, and reload into it (unless something is playing).
+  const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "0";
+  let lastCheck = 0;
+  async function checkForUpdate() {
+    if (Date.now() - lastCheck < 30000) return;
+    lastCheck = Date.now();
+    try {
+      const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const { v } = await res.json();
+      if (!v || v === APP_VERSION) return;
+      if (currentTrack() && !el.paused) { toast("A new version is ready. Tap ↻ to update."); return; }
+      savePosition();
+      location.replace(`./?v=${encodeURIComponent(v)}${location.hash}`);
+    } catch { /* offline: try again next time */ }
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+  window.addEventListener("pageshow", checkForUpdate);
+  checkForUpdate();
 
   // ───────────────────────── views ─────────────────────────
   const shelfCache = new Map();

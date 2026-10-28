@@ -71,3 +71,7 @@ Open that link in **Safari** → tap **Share** → **Add to Home Screen**. It op
 | `style.css` | The look |
 | `config.js` | API key and Drive folder ID (the only file you need to edit) |
 | `manifest.webmanifest`, `icons/` | Home-screen app name and icon |
+
+## Updates on home-screen copies
+
+iPhones hold on to old files for home-screen web apps. The app checks `version.json` every time it opens and reloads itself when the version changes. After changing any file, run `./bump-version.sh` before pushing (or, if you edit on GitHub, change the number in `version.json` and the `app-version` line in `index.html` to anything new). The ↻ button at the top always does a full refresh.
