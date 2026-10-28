@@ -417,24 +417,30 @@
       <div id="grid"></div>
       <p class="count" id="count"></p>`;
 
-    // Group by season when this shelf's folders match the episode list (the radio shelf does).
-    const tagged = items.map((i) => {
+    // Match each folder to the episode list: gives season, episode numbers and the teaser.
+    let tagged = items.map((i) => {
       const info = findInfo(i.name);
       const nums = info.map((e) => e.n).filter((n) => n > 0);
       const n = nums.length ? Math.min(...nums) : (info.length ? 1000 : null); // specials sort after
-      return { item: i, n, season: n == null ? null : seasonOf(n) };
+      const part = (i.name.match(/\bpart\s*(\d+)\b|,\s*(\d+)\s*$/i) || []).slice(1).find(Boolean);
+      return { item: i, info, nums, n, part, season: n == null ? null : seasonOf(n) };
     });
-    const bySeason = tagged.filter((t) => t.n != null).length >= items.length / 2;
+    // Same episode as both a loose file and a folder (e.g. the All-Bear Sing-Along): keep the folder.
+    const inFolders = new Set(tagged.filter((t) => t.item.kind === "folder").flatMap((t) => t.info.map((e) => e.t)));
+    tagged = tagged.filter((t) => !(t.item.kind === "file" && t.info.length && t.info.every((e) => inFolders.has(e.t))));
+
+    const bySeason = tagged.filter((t) => t.n != null).length >= tagged.length / 2;
     tagged.sort((a, b) => bySeason
       ? ((a.n ?? 9999) - (b.n ?? 9999)) || byName(a.item, b.item)
       : byName(a.item, b.item));
 
     const draw = () => {
       const q = searchTerm.trim().toLowerCase();
-      const shown = tagged.filter((t) => !q || t.item.name.toLowerCase().includes(q));
+      const shown = tagged.filter((t) => !q || t.item.name.toLowerCase().includes(q) ||
+        t.info.some((e) => (e.who + " " + e.lesson).toLowerCase().includes(q)));
       let html = "";
       if (!shown.length) html = `<p class="empty">No episodes match “${esc(searchTerm)}”.</p>`;
-      else if (!bySeason) html = `<div class="grid">${shown.map((t) => episodeCard(t.item, shelfId)).join("")}</div>`;
+      else if (!bySeason) html = `<div class="ep-list">${shown.map((t) => episodeRow(t, shelfId)).join("")}</div>`;
       else {
         const groups = new Map();
         for (const t of shown) {
@@ -443,36 +449,45 @@
           groups.get(key).push(t);
         }
         for (const [key, list] of groups) {
+          const count = new Set(list.flatMap((t) => t.info.length ? t.info.map((e) => e.t) : [t.item.id])).size;
           html += `<section class="season">
             <h2 class="season-title">${esc(typeof key === "number" ? `Season ${key}` : key)}
-              <span>${list.length} ${list.length === 1 ? "folder" : "folders"}</span></h2>
-            <div class="grid">${list.map((t) => episodeCard(t.item, shelfId)).join("")}</div>
+              <span>${count} ${count === 1 ? "episode" : "episodes"}</span></h2>
+            <div class="ep-list">${list.map((t) => episodeRow(t, shelfId)).join("")}</div>
           </section>`;
         }
       }
       $("grid").innerHTML = html;
-      $("count").textContent = `${shown.length} of ${items.length}`;
+      $("count").textContent = q ? `${shown.length} of ${tagged.length}` : "";
     };
     $("q").addEventListener("input", (e) => { searchTerm = e.target.value; draw(); });
     draw();
   }
 
-  function episodeCard(item, shelfId) {
+  function episodeRow(t, shelfId) {
+    const { item } = t;
     const s = episodeState(item.id);
     const isNow = state.episode && state.episode.id === item.id;
+    const meta = [];
+    if (t.nums.length) meta.push(`Ep ${t.nums.join(" & ")}`);
+    if (t.part) meta.push(`Part ${t.part}`);
+    if (s === "started") meta.push(`<b>Resume</b>`);
+    else if (s === "played") meta.push("Played ✓");
+    if (favorites.has(item.id)) meta.push(`<b>★</b>`);
+    const tease = t.info.length ? t.info.map((e) => e.tease).join(" ") : "";
     return `
-      <div class="card ${isNow ? "now-playing" : ""}" style="--c:${hue(item.name)}">
-        <div class="art-wrap">
-          <a href="#/e/${shelfId}/${item.id}" tabindex="-1" aria-hidden="true">
-            <span class="art">${JJArt.art(item.name)}</span>
-          </a>
-          ${s === "started" ? `<span class="badge">Resume</span>` : s === "played" ? `<span class="badge quiet">Played</span>` : ""}
-          ${favorites.has(item.id) ? `<span class="star" aria-label="Favorite">★</span>` : ""}
-          <button class="card-play" data-play="${item.id}" aria-label="Play ${esc(item.name)}">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-        </div>
-        <a class="card-name" href="#/e/${shelfId}/${item.id}">${esc(item.name)}</a>
+      <div class="ep-row ${isNow ? "now-playing" : ""}">
+        <a class="ep-main" href="#/e/${shelfId}/${item.id}">
+          <span class="ep-art">${JJArt.art(item.name)}</span>
+          <span class="ep-text">
+            ${meta.length ? `<span class="ep-meta">${meta.join(" · ")}</span>` : ""}
+            <span class="ep-title">${esc(item.name)}</span>
+            ${tease ? `<span class="ep-tease">${esc(tease)}</span>` : ""}
+          </span>
+        </a>
+        <button class="row-play ${isNow && !el.paused ? "playing" : ""}" data-play="${item.id}" aria-label="Play ${esc(item.name)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
       </div>`;
   }
 
