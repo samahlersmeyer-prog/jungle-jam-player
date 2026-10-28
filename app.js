@@ -375,7 +375,7 @@
     html += `<section><h2 class="shelf-title">Shelves</h2><div class="shelves">`;
     html += folders.map((f) => `
       <a class="shelf" href="#/s/${f.id}" style="--c:${hue(f.name)}">
-        <span class="shelf-art" aria-hidden="true">${esc(initials(f.name))}</span>
+        <span class="shelf-art">${JJArt.art(f.name, { shelf: true })}</span>
         <span class="shelf-name">${esc(f.name)}</span>
         <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </a>`).join("");
@@ -387,7 +387,7 @@
     const s = episodeState(id);
     return `
       <a class="rail-card" href="#/e/${e.shelf}/${id}" style="--c:${hue(e.name)}">
-        <span class="art" aria-hidden="true">${esc(initials(e.name))}</span>
+        <span class="art">${JJArt.art(e.name)}</span>
         <span class="rail-name">${esc(e.name)}</span>
         ${s === "started" ? `<span class="badge">Resume</span>` : ""}
       </a>`;
@@ -434,7 +434,7 @@
       <div class="card ${isNow ? "now-playing" : ""}" style="--c:${hue(item.name)}">
         <div class="art-wrap">
           <a href="#/e/${shelfId}/${item.id}" tabindex="-1" aria-hidden="true">
-            <span class="art">${esc(initials(item.name))}</span>
+            <span class="art">${JJArt.art(item.name)}</span>
           </a>
           ${s === "started" ? `<span class="badge">Resume</span>` : s === "played" ? `<span class="badge quiet">Played</span>` : ""}
           ${favorites.has(item.id) ? `<span class="star" aria-label="Favorite">★</span>` : ""}
@@ -460,7 +460,7 @@
 
     view.innerHTML = `
       <div class="hero" style="--c:${hue(item.name)}">
-        <span class="hero-art" aria-hidden="true">${esc(initials(item.name))}</span>
+        <span class="hero-art">${JJArt.art(item.name)}</span>
         <h2>${esc(item.name)}</h2>
         <div class="hero-actions">
           <button class="big-play" id="epPlay">${isNow && !el.paused ? "Playing" : resumable ? "Resume" : "Play"}</button>
