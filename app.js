@@ -53,6 +53,25 @@
 
   // ───────────────────────── Google Drive ─────────────────────────
   const mediaUrl = (id) => `${API}/${encodeURIComponent(id)}?alt=media&key=${encodeURIComponent(CFG.apiKey)}`;
+  // Ways to stream a public Drive file. If one is refused, the player tries the next
+  // and remembers which one worked for next time.
+  const SOURCES = [
+    (id) => mediaUrl(id),
+    (id) => `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download&authuser=0`,
+    (id) => `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`,
+  ];
+  let preferredSource = Number(store.get("source", 0)) || 0;
+  if (preferredSource >= SOURCES.length) preferredSource = 0;
+
+  // Ask Drive why a file won't download (the API answers with a readable error).
+  async function driveError(id) {
+    try {
+      const res = await fetch(mediaUrl(id), { headers: { Range: "bytes=0-1" } });
+      if (res.ok) return "";
+      const body = await res.json().catch(() => null);
+      return (body && body.error && body.error.message) || `Google Drive said ${res.status}`;
+    } catch (e) { return e.message || ""; }
+  }
 
   async function listFolder(id, { fresh = false } = {}) {
     const cacheKey = "list:" + id;
@@ -180,7 +199,10 @@
     el = next;
     $("stage").hidden = el !== video;
 
-    el.src = mediaUrl(track.id);
+    el.dataset.attempts = "0";
+    el.dataset.source = String(preferredSource);
+    el.dataset.track = track.id;
+    el.src = SOURCES[preferredSource](track.id);
     const p = progress[track.id];
     const resumeAt = p && p.t > 10 && (!p.d || p.t < p.d - 15) ? p.t : 0;
     const onMeta = () => { if (resumeAt) el.currentTime = resumeAt; el.removeEventListener("loadedmetadata", onMeta); };
@@ -234,10 +256,32 @@
       if (++saveTick % 20 === 0) savePosition();
       checkSleep();
     });
-    m.addEventListener("error", () => {
+    m.addEventListener("error", async () => {
       if (m !== el || !m.getAttribute("src")) return;
-      toast("Couldn't play this file. Check that the Drive folder is shared “Anyone with the link”.");
+      const id = m.dataset.track;
+      const tried = Number(m.dataset.source || 0);
+      const nextSource = (tried + 1) % SOURCES.length;
+      const attempts = Number(m.dataset.attempts || 0) + 1;
+      if (attempts < SOURCES.length) {
+        // Try the next way of loading this file, keeping our place.
+        const at = m.currentTime || 0;
+        m.dataset.attempts = String(attempts);
+        m.dataset.source = String(nextSource);
+        m.src = SOURCES[nextSource](id);
+        if (at) m.addEventListener("loadedmetadata", () => { m.currentTime = at; }, { once: true });
+        m.play().catch(() => {});
+        return;
+      }
+      m.dataset.attempts = "0";
+      const why = await driveError(id);
+      toast(why ? `Couldn't play this file: ${why}` : "Couldn't play this file. Tap ↻ and try again.");
       updatePlayButton();
+    });
+    m.addEventListener("playing", () => {
+      if (m !== el) return;
+      m.dataset.attempts = "0";
+      const src = Number(m.dataset.source || 0);
+      if (src !== preferredSource) { preferredSource = src; store.set("source", src); }
     });
   }
 
@@ -301,7 +345,10 @@
   // ───────────────────────── controls ─────────────────────────
   $("playPause").addEventListener("click", () => {
     if (!currentTrack()) return;
-    if (el.paused) el.play().catch((e) => toast("Tap play again — " + e.message));
+    if (el.paused) el.play().catch((e) => {
+      // "No supported sources" means the file itself failed; the error handler deals with that.
+      if (e && e.name === "NotAllowedError") toast("Tap play again to start.");
+    });
     else el.pause();
   });
   $("back15").addEventListener("click", () => { el.currentTime = Math.max(0, el.currentTime - 15); });
