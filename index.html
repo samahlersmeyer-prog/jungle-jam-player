@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Jungle Jam &amp; Friends</title>
+  <meta name="theme-color" content="#123524">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Jungle Jam">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="back" id="back" aria-label="Back" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <h1 id="title">Jungle Jam &amp; Friends</h1>
+    <button class="icon-btn" id="refresh" aria-label="Refresh episode list" title="Refresh episode list">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>
+    </button>
+  </header>
+
+  <div class="stage" id="stage" hidden>
+    <video id="video" playsinline controls preload="metadata"></video>
+  </div>
+
+  <main id="view" aria-live="polite"></main>
+
+  <audio id="audio" preload="metadata"></audio>
+
+  <footer class="player" id="player" hidden>
+    <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position">
+    <div class="player-row">
+      <button class="now" id="now" aria-label="Open current episode">
+        <span class="now-title" id="nowTitle"></span>
+        <span class="now-sub" id="nowSub"></span>
+      </button>
+      <div class="controls">
+        <button class="icon-btn" id="back15" aria-label="Back 15 seconds">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/><text x="12" y="15.5" text-anchor="middle">15</text></svg>
+        </button>
+        <button class="play-btn" id="playPause" aria-label="Play">
+          <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+        </button>
+        <button class="icon-btn" id="next" aria-label="Next part">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7zM17 5h2v14h-2z"/></svg>
+        </button>
+        <button class="icon-btn sleep" id="sleep" aria-label="Sleep timer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+          <span id="sleepLabel"></span>
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <dialog id="sleepDialog">
+    <form method="dialog">
+      <h2>Sleep timer</h2>
+      <p>Stop playing after…</p>
+      <div class="sleep-options">
+        <button value="15">15 min</button>
+        <button value="30">30 min</button>
+        <button value="45">45 min</button>
+        <button value="episode">End of episode</button>
+        <button value="off" class="ghost">Off</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
