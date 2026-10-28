@@ -414,13 +414,43 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
         <input id="q" type="search" placeholder="Find an episode" value="${esc(searchTerm)}" autocomplete="off">
       </div>
-      <div class="grid" id="grid"></div>
+      <div id="grid"></div>
       <p class="count" id="count"></p>`;
+
+    // Group by season when this shelf's folders match the episode list (the radio shelf does).
+    const tagged = items.map((i) => {
+      const info = findInfo(i.name);
+      const nums = info.map((e) => e.n).filter((n) => n > 0);
+      const n = nums.length ? Math.min(...nums) : (info.length ? 1000 : null); // specials sort after
+      return { item: i, n, season: n == null ? null : seasonOf(n) };
+    });
+    const bySeason = tagged.filter((t) => t.n != null).length >= items.length / 2;
+    tagged.sort((a, b) => bySeason
+      ? ((a.n ?? 9999) - (b.n ?? 9999)) || byName(a.item, b.item)
+      : byName(a.item, b.item));
+
     const draw = () => {
       const q = searchTerm.trim().toLowerCase();
-      const shown = items.filter((i) => !q || i.name.toLowerCase().includes(q));
-      $("grid").innerHTML = shown.map((i) => episodeCard(i, shelfId)).join("") ||
-        `<p class="empty">No episodes match “${esc(searchTerm)}”.</p>`;
+      const shown = tagged.filter((t) => !q || t.item.name.toLowerCase().includes(q));
+      let html = "";
+      if (!shown.length) html = `<p class="empty">No episodes match “${esc(searchTerm)}”.</p>`;
+      else if (!bySeason) html = `<div class="grid">${shown.map((t) => episodeCard(t.item, shelfId)).join("")}</div>`;
+      else {
+        const groups = new Map();
+        for (const t of shown) {
+          const key = t.season || "More";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(t);
+        }
+        for (const [key, list] of groups) {
+          html += `<section class="season">
+            <h2 class="season-title">${esc(typeof key === "number" ? `Season ${key}` : key)}
+              <span>${list.length} ${list.length === 1 ? "folder" : "folders"}</span></h2>
+            <div class="grid">${list.map((t) => episodeCard(t.item, shelfId)).join("")}</div>
+          </section>`;
+        }
+      }
+      $("grid").innerHTML = html;
       $("count").textContent = `${shown.length} of ${items.length}`;
     };
     $("q").addEventListener("input", (e) => { searchTerm = e.target.value; draw(); });
@@ -583,6 +613,12 @@
   // ───────────────────────── episode previews ─────────────────────────
   const squash = (s) => String(s).toLowerCase().replace(/\bpart\s*\d+\b|,\s*\d+$/g, "").replace(/[^a-z0-9]/g, "");
   const INFO = (window.JJ_INFO || []).map((e) => ({ ...e, keys: [e.t, ...(e.aka || [])].map(squash) }));
+
+  // Seasons as numbered in the published episode list; 1000 = specials not in that list.
+  function seasonOf(n) {
+    if (n >= 1000) return "Specials";
+    return n <= 22 ? 1 : n <= 45 ? 2 : n <= 55 ? 3 : 4;
+  }
 
   // A folder like "A River Runs Over It & Koalas In The Mist" holds two episodes.
   function findInfo(folderName) {

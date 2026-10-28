@@ -261,3 +261,11 @@ dialog p { margin: 4px 0 16px; color: var(--ink-2); }
 .preview dt { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
 .preview dd { margin: 0; font-size: 14px; font-weight: 800; }
 @media (min-width: 700px) { .previews:has(.preview + .preview) { grid-template-columns: 1fr 1fr; } }
+
+/* ── seasons ── */
+.season { margin-bottom: 26px; }
+.season-title {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 6px 0 12px; font: 800 22px/1.2 "Baloo 2", sans-serif; color: var(--banana);
+}
+.season-title span { font: 700 13px "Nunito", sans-serif; color: var(--ink-2); }
