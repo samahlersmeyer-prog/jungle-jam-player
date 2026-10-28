@@ -53,24 +53,65 @@
 
   // ───────────────────────── Google Drive ─────────────────────────
   const mediaUrl = (id) => `${API}/${encodeURIComponent(id)}?alt=media&key=${encodeURIComponent(CFG.apiKey)}`;
-  // Ways to stream a public Drive file. If one is refused, the player tries the next
-  // and remembers which one worked for next time.
-  const SOURCES = [
-    (id) => mediaUrl(id),
-    (id) => `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download&authuser=0`,
-    (id) => `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`,
-  ];
+  // Ways to play a public Drive file, in order. Safari's audio player doesn't tell Google
+  // which site is asking, so a website-restricted key gets refused there. "blob" downloads the
+  // file the same way the episode list loads (which Safari does identify), then plays it from memory.
+  const SOURCES = ["direct", "blob", "usercontent"];
   let preferredSource = Number(store.get("source", 0)) || 0;
   if (preferredSource >= SOURCES.length) preferredSource = 0;
 
-  // Ask Drive why a file won't download (the API answers with a readable error).
+  const blobCache = new Map(); // fileId -> Promise<objectURL>
+  function blobUrl(id) {
+    if (!blobCache.has(id)) {
+      const p = fetch(mediaUrl(id)).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error((body && body.error && body.error.message) || `Google Drive said ${res.status}`);
+        }
+        return URL.createObjectURL(await res.blob());
+      });
+      p.catch(() => blobCache.delete(id));
+      blobCache.set(id, p);
+      // keep memory small: only the current and next couple of parts
+      while (blobCache.size > 3) {
+        const [oldId, oldP] = blobCache.entries().next().value;
+        blobCache.delete(oldId);
+        oldP.then((u) => URL.revokeObjectURL(u)).catch(() => {});
+      }
+    }
+    return blobCache.get(id);
+  }
+
+  async function sourceUrl(kind, id) {
+    if (kind === "blob") return blobUrl(id);
+    if (kind === "usercontent") return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download&authuser=0`;
+    return mediaUrl(id);
+  }
+
+  async function setSource(m, kind, id, at, autoplay) {
+    m.dataset.source = String(SOURCES.indexOf(kind));
+    m.dataset.track = id;
+    if (kind === "blob") setNow(state.episode ? state.episode.name : "", "Loading…");
+    let url;
+    try { url = await sourceUrl(kind, id); }
+    catch (e) { m.dispatchEvent(Object.assign(new Event("error"), { why: e.message })); return; }
+    if (m.dataset.track !== id) return; // user moved on while it loaded
+    m.src = url;
+    if (at) m.addEventListener("loadedmetadata", () => { m.currentTime = at; }, { once: true });
+    if (autoplay) m.play().catch(() => {});
+    if (kind === "blob") setNow(state.episode.name, partLabel());
+  }
+
+  // Ask Drive why a file won't download.
   async function driveError(id) {
     try {
-      const res = await fetch(mediaUrl(id), { headers: { Range: "bytes=0-1" } });
+      const ctl = new AbortController();
+      const res = await fetch(mediaUrl(id), { signal: ctl.signal });
+      ctl.abort();
       if (res.ok) return "";
       const body = await res.json().catch(() => null);
       return (body && body.error && body.error.message) || `Google Drive said ${res.status}`;
-    } catch (e) { return e.message || ""; }
+    } catch (e) { return e.name === "AbortError" ? "" : (e.message || ""); }
   }
 
   async function listFolder(id, { fresh = false } = {}) {
@@ -200,14 +241,9 @@
     $("stage").hidden = el !== video;
 
     el.dataset.attempts = "0";
-    el.dataset.source = String(preferredSource);
-    el.dataset.track = track.id;
-    el.src = SOURCES[preferredSource](track.id);
     const p = progress[track.id];
     const resumeAt = p && p.t > 10 && (!p.d || p.t < p.d - 15) ? p.t : 0;
-    const onMeta = () => { if (resumeAt) el.currentTime = resumeAt; el.removeEventListener("loadedmetadata", onMeta); };
-    el.addEventListener("loadedmetadata", onMeta);
-    el.play().catch(() => { /* iOS may need a tap; play button handles it */ });
+    setSource(el, SOURCES[preferredSource], track.id, resumeAt, true);
 
     episodes[state.episode.id] = {
       name: state.episode.name, shelf: state.episode.shelf, kind: state.episode.kind,
@@ -256,24 +292,20 @@
       if (++saveTick % 20 === 0) savePosition();
       checkSleep();
     });
-    m.addEventListener("error", async () => {
-      if (m !== el || !m.getAttribute("src")) return;
+    m.addEventListener("error", async (ev) => {
+      if (m !== el || !m.dataset.track) return;
       const id = m.dataset.track;
       const tried = Number(m.dataset.source || 0);
-      const nextSource = (tried + 1) % SOURCES.length;
       const attempts = Number(m.dataset.attempts || 0) + 1;
       if (attempts < SOURCES.length) {
         // Try the next way of loading this file, keeping our place.
-        const at = m.currentTime || 0;
         m.dataset.attempts = String(attempts);
-        m.dataset.source = String(nextSource);
-        m.src = SOURCES[nextSource](id);
-        if (at) m.addEventListener("loadedmetadata", () => { m.currentTime = at; }, { once: true });
-        m.play().catch(() => {});
+        setSource(m, SOURCES[(tried + 1) % SOURCES.length], id, m.currentTime || 0, true);
         return;
       }
       m.dataset.attempts = "0";
-      const why = await driveError(id);
+      const why = ev.why || await driveError(id);
+      setNow(state.episode ? state.episode.name : "", partLabel());
       toast(why ? `Couldn't play this file: ${why}` : "Couldn't play this file. Tap ↻ and try again.");
       updatePlayButton();
     });
@@ -282,6 +314,8 @@
       m.dataset.attempts = "0";
       const src = Number(m.dataset.source || 0);
       if (src !== preferredSource) { preferredSource = src; store.set("source", src); }
+      const nextPart = state.queue[state.index + 1];
+      if (SOURCES[src] === "blob" && nextPart) blobUrl(nextPart.id).catch(() => {});
     });
   }
 
