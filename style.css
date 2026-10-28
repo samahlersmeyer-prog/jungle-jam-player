@@ -311,3 +311,31 @@ dialog p { margin: 4px 0 16px; color: var(--ink-2); }
   .ep-art { width: 80px; height: 80px; }
   .ep-title { font-size: 17px; }
 }
+
+/* ── about & gang ── */
+.about-card {
+  padding: 18px 18px 20px; border-radius: var(--radius);
+  background: linear-gradient(160deg, var(--card-2), var(--card)); border: 1px solid var(--line);
+}
+.about-card p { margin: 0 0 12px; line-height: 1.5; color: var(--ink); }
+.about-card p:first-child { font-size: 17px; font-weight: 700; }
+.about-card p + p { color: var(--ink-2); }
+.big-play.start { display: inline-flex; align-items: center; margin-top: 6px; font-size: 16px; height: 48px; }
+.gang { display: grid; }
+.gang-row {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.gang-row:last-child { border-bottom: 0; }
+a.gang-row:active { opacity: .7; }
+.gang-badge {
+  flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
+  background: var(--c); color: #13261b; font: 800 18px/1 "Baloo 2", sans-serif;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, .22);
+}
+.gang-text { display: grid; gap: 3px; min-width: 0; }
+.gang-name { font-weight: 800; font-size: 16px; }
+.gang-name em { font-style: normal; font-weight: 700; font-size: 13px; color: var(--ink-2); margin-left: 4px; }
+.gang-about { font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+.gang-eps { font-size: 13px; font-weight: 800; color: var(--banana); }
+@media (min-width: 700px) { .gang { grid-template-columns: 1fr 1fr; column-gap: 28px; } }

@@ -401,7 +401,51 @@
         <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
       </a>`).join("");
     html += `</div></section>`;
+    html += await aboutHtml(folders);
     view.innerHTML = html;
+  }
+
+  // ───────────────────────── about & characters ─────────────────────────
+  async function aboutHtml(folders) {
+    const A = window.JJ_ABOUT;
+    if (!A) return "";
+    const radio = folders.find((f) => /radio|episode/i.test(f.name) && !/video/i.test(f.name));
+    let startHref = radio ? `#/s/${radio.id}` : "";
+    if (radio) {
+      try {
+        const first = (await getShelf(radio.id)).find((i) => findInfo(i.name).some((e) => e.n === 1));
+        if (first) startHref = `#/e/${radio.id}/${first.id}`;
+      } catch { /* the shelf link still works */ }
+    }
+    const count = (find) => (window.JJ_INFO || []).filter((e) =>
+      `${e.who} ${e.t}`.toLowerCase().includes(find.toLowerCase())).length;
+
+    return `
+      <section class="about">
+        <h2 class="shelf-title">What is Jungle Jam?</h2>
+        <div class="about-card">
+          ${A.intro.map((p) => `<p>${esc(p)}</p>`).join("")}
+          ${startHref ? `<a class="big-play start" href="${startHref}">New here? Start with Episode 1</a>` : ""}
+        </div>
+      </section>
+      <section>
+        <h2 class="shelf-title">Meet the gang</h2>
+        <div class="gang">
+          ${A.gang.map((c) => {
+            const n = count(c.find);
+            const inner = `
+              <span class="gang-badge" style="--c:${hue(c.name)}">${esc(initials(c.name))}</span>
+              <span class="gang-text">
+                <span class="gang-name">${esc(c.name)} <em>${esc(c.what)}</em></span>
+                <span class="gang-about">${esc(c.about)}</span>
+                ${n && radio ? `<span class="gang-eps">Stars in ${n} ${n === 1 ? "episode" : "episodes"} ›</span>` : ""}
+              </span>`;
+            return n && radio
+              ? `<a class="gang-row" href="#/s/${radio.id}/q/${encodeURIComponent(c.find)}">${inner}</a>`
+              : `<div class="gang-row">${inner}</div>`;
+          }).join("")}
+        </div>
+      </section>`;
   }
 
   function railCard(id, e) {
@@ -587,7 +631,7 @@
 
   function route() {
     const parts = location.hash.replace(/^#\/?/, "").split("/");
-    if (parts[0] === "s" && parts[1]) return { name: "shelf", shelf: parts[1] };
+    if (parts[0] === "s" && parts[1]) return { name: "shelf", shelf: parts[1], q: parts[2] === "q" ? decodeURIComponent(parts[3] || "") : null };
     if (parts[0] === "e" && parts[1] && parts[2]) return { name: "episode", shelf: parts[1], episode: parts[2] };
     return { name: "home" };
   }
@@ -599,7 +643,7 @@
     const r = route();
     const scroll = quiet ? window.scrollY : 0;
     try {
-      if (r.name === "shelf") await renderShelf(r.shelf);
+      if (r.name === "shelf") { if (r.q != null) searchTerm = r.q; await renderShelf(r.shelf); }
       else if (r.name === "episode") await renderEpisode(r.shelf, r.episode);
       else await renderHome();
       if (seq === renderSeq) window.scrollTo(0, scroll);
