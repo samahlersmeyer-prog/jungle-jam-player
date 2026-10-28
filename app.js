@@ -467,6 +467,7 @@
           <button class="fav ${fav ? "on" : ""}" id="epFav" aria-pressed="${fav}">${fav ? "★ Favorite" : "☆ Favorite"}</button>
         </div>
       </div>
+      ${previewHtml(item.name)}
       <ol class="tracks">
         ${tracks.map((t, i) => {
           const p = progress[t.id];
@@ -579,7 +580,35 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) savePosition(); });
 
   // Exposed for tests only.
-  window.__jj = { cleanName, isPromo, isLossless, byName };
+  // ───────────────────────── episode previews ─────────────────────────
+  const squash = (s) => String(s).toLowerCase().replace(/\bpart\s*\d+\b|,\s*\d+$/g, "").replace(/[^a-z0-9]/g, "");
+  const INFO = (window.JJ_INFO || []).map((e) => ({ ...e, keys: [e.t, ...(e.aka || [])].map(squash) }));
+
+  // A folder like "A River Runs Over It & Koalas In The Mist" holds two episodes.
+  function findInfo(folderName) {
+    return folderName.split(/\s+&\s+/).map((part) => {
+      const seg = squash(part);
+      if (seg.length < 4) return null;
+      return INFO.find((e) => e.keys.some((k) => k === seg || (seg.length >= 10 && (k.startsWith(seg) || seg.startsWith(k)))));
+    }).filter(Boolean);
+  }
+
+  function previewHtml(folderName) {
+    const found = findInfo(folderName);
+    if (!found.length) return "";
+    return `<div class="previews">${found.map((e) => `
+      <article class="preview">
+        ${found.length > 1 ? `<h3>${esc(e.t)}</h3>` : ""}
+        <p class="tease">${esc(e.tease)}</p>
+        <dl>
+          ${e.who ? `<div><dt>Starring</dt><dd>${esc(e.who)}</dd></div>` : ""}
+          ${e.lesson ? `<div><dt>Lesson</dt><dd>${esc(e.lesson)}</dd></div>` : ""}
+          ${e.verse ? `<div><dt>Verse</dt><dd>${esc(e.verse)}</dd></div>` : ""}
+        </dl>
+      </article>`).join("")}</div>`;
+  }
+
+  window.__jj = { cleanName, isPromo, isLossless, byName, findInfo };
 
   render();
 })();
